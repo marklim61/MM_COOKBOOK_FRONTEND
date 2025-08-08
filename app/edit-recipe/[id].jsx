@@ -2,24 +2,27 @@ import { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
-  TextInput,
+  ActivityIndicator,
   TouchableOpacity,
   Image,
   ScrollView,
   Alert,
   Keyboard,
   TouchableWithoutFeedback,
+  TextInput,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { Entypo, Ionicons, MaterialIcons } from "@expo/vector-icons";
 import axios from "axios";
 import { API_BASE_URL } from "@env";
+import { useLocalSearchParams } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
 import { Link } from "expo-router";
 import { AntDesign } from "@expo/vector-icons";
 import { FlatList } from "react-native";
 
-export default function CreateDishScreen() {
+export default function EditDishScreen() {
+  const { id } = useLocalSearchParams();
   const navigation = useNavigation();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -33,6 +36,7 @@ export default function CreateDishScreen() {
     { number: 1, instruction: "", image: null },
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const [allIngredients, setAllIngredients] = useState([]);
   const [allUnits, setAllUnits] = useState([]);
@@ -49,6 +53,86 @@ export default function CreateDishScreen() {
   const [isFavorite, setIsFavorite] = useState(false);
 
   const scrollViewRef = useRef();
+
+  // Fetch existing dish data
+  useEffect(() => {
+    console.log("API_BASE_URL:", API_BASE_URL);
+    const fetchDishData = async () => {
+      try {
+        const [dishRes, ingredientsRes, unitsRes, categoriesRes] =
+          await Promise.all([
+            axios.get(`${API_BASE_URL}/api/dishes/${id}/`),
+            axios.get(`${API_BASE_URL}/api/ingredients/`),
+            axios.get(`${API_BASE_URL}/api/units/`),
+            axios.get(`${API_BASE_URL}/api/categories/`),
+            // axios.get(`http://192.168.1.65:8000/api/dishes/${id}/`),
+            // axios.get(`http://192.168.1.65:8000/api/ingredients/`),
+            // axios.get(`http://192.168.1.65:8000/api/units/`),
+            // axios.get(`http://192.168.1.65:8000/api/categories/`),
+          ]);
+
+        const dish = dishRes.data;
+
+        // Set basic dish info
+        setName(dish.name);
+        setDescription(dish.description || "");
+        setPrepTime(dish.prep_time?.toString() || "");
+        setCookTime(dish.cook_time?.toString() || "");
+        setImage(dish.image ? `${API_BASE_URL}${dish.image}` : null);
+        setIsFavorite(dish.is_favorite);
+
+        // Set category
+        if (dish.category) {
+          const category = categoriesRes.data.find(
+            (c) => c.id === dish.category
+          );
+          setSelectedCategory(category);
+        }
+
+        // Set ingredients
+        const formattedIngredients = dish.dishingredient_set.map((ing) => ({
+          id: ing.ingredient_detail?.id,
+          name: ing.ingredient_detail?.name || "",
+          quantity: ing.quantity || "",
+          unitId: ing.unit_detail?.id,
+          unit: ing.unit_detail?.name || "",
+        }));
+        setIngredients(
+          formattedIngredients.length
+            ? formattedIngredients
+            : [{ name: "", quantity: "", unit: "" }]
+        );
+
+        // Set steps
+        const formattedSteps = dish.steps
+          .map((step) => ({
+            id: step.id,
+            number: step.step_number,
+            instruction: step.instruction || "",
+            image: step.image || null, // This will be the full URL from API
+          }))
+          .sort((a, b) => a.number - b.number); // Ensure steps are in order
+
+        setSteps(
+          formattedSteps.length
+            ? formattedSteps
+            : [{ number: 1, instruction: "", image: null }]
+        );
+
+        // Set dropdown options
+        setAllIngredients(ingredientsRes.data);
+        setAllUnits(unitsRes.data);
+        setCategories(categoriesRes.data);
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        Alert.alert("Error", "Failed to load dish data");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDishData();
+  }, [id]);
 
   const pickImage = async (stepIndex = null) => {
     let result = await ImagePicker.launchImageLibraryAsync({
@@ -69,42 +153,6 @@ export default function CreateDishScreen() {
       }
     }
   };
-
-  useEffect(() => {
-    const fetchIngredients = async () => {
-      try {
-        const response = await axios.get(`${API_BASE_URL}/api/ingredients/`);
-        // const response = await axios.get(`http://192.168.1.65:8000/api/ingredients/`);
-        setAllIngredients(response.data);
-      } catch (error) {
-        console.error("Error fetching ingredients:", error);
-      }
-    };
-
-    const fetchUnits = async () => {
-      try {
-        const response = await axios.get(`${API_BASE_URL}/api/units/`);
-        // const response = await axios.get(`http://192.168.1.65:8000/api/units/`);
-        setAllUnits(response.data);
-      } catch (error) {
-        console.error("Error fetching units:", error);
-      }
-    };
-
-    const fetchCategories = async () => {
-      try {
-        const response = await axios.get(`${API_BASE_URL}/api/categories/`);
-        // const response = await axios.get(`http://192.168.1.65:8000/api/categories/`);
-        setCategories(response.data);
-      } catch (error) {
-        console.error("Error fetching categories:", error);
-      }
-    };
-
-    fetchCategories();
-    fetchIngredients();
-    fetchUnits();
-  }, []);
 
   const filteredIngredients = allIngredients.filter((ingredient) =>
     ingredient.name.toLowerCase().includes(ingredientSearch.toLowerCase())
@@ -187,7 +235,6 @@ export default function CreateDishScreen() {
         steps: steps.map((step, index) => ({
           step_number: index + 1,
           instruction: step.instruction || "",
-          // Handle step image separately
         })),
       };
 
@@ -195,8 +242,8 @@ export default function CreateDishScreen() {
       const formData = new FormData();
       formData.append("data", JSON.stringify(payload));
 
-      // Add images separately
-      if (image) {
+      // Add images separately if they're new (not URLs)
+      if (image && !image.startsWith("http")) {
         const filename = image.split("/").pop();
         const match = /\.(\w+)$/.exec(filename);
         const type = match ? `image/${match[1]}` : "image";
@@ -209,7 +256,7 @@ export default function CreateDishScreen() {
 
       // Add step images if needed
       steps.forEach((step, index) => {
-        if (step.image) {
+        if (step.image && !step.image.startsWith("http")) {
           const filename = step.image.split("/").pop();
           const match = /\.(\w+)$/.exec(filename);
           const type = match ? `image/${match[1]}` : "image";
@@ -221,14 +268,8 @@ export default function CreateDishScreen() {
         }
       });
 
-      // Debug: Log FormData contents
-      console.log("Final FormData contents:");
-      for (let [key, value] of formData.entries()) {
-        console.log(key, value);
-      }
-
-      const response = await axios.post(
-        `${API_BASE_URL}/api/dishes/`,
+      const response = await axios.patch(
+        `${API_BASE_URL}/api/dishes/${id}/`,
         formData,
         {
           headers: {
@@ -236,28 +277,34 @@ export default function CreateDishScreen() {
             Accept: "application/json",
           },
           transformRequest: (data, headers) => {
-            // Remove the automatic Content-Type header
             delete headers["Content-Type"];
             return data;
           },
         }
       );
 
-      Alert.alert("Success", "Dish created successfully!");
+      Alert.alert("Success", "Dish updated successfully!");
       navigation.goBack();
     } catch (error) {
-      console.error("Full error:", error);
-      console.error("Error response data:", error.response?.data);
+      console.error("Error updating dish:", error);
       Alert.alert(
         "Error",
         error.response?.data
           ? JSON.stringify(error.response.data)
-          : "Failed to create dish. Please try again."
+          : "Failed to update dish. Please try again."
       );
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  if (loading) {
+    return (
+      <View className="flex-1 justify-center items-center">
+        <ActivityIndicator size="large" color="#4CAF50" />
+      </View>
+    );
+  }
 
   const handleBackgroundTap = () => {
     Keyboard.dismiss();
@@ -265,6 +312,11 @@ export default function CreateDishScreen() {
     setShowUnitDropdown(false);
     setShowCategoryDropdown(false);
   };
+
+  // Keep all your existing JSX from createDish.jsx, but change:
+  // 1. The title from "Create Dish" to "Edit Dish"
+  // 2. The save button text from "Save Dish" to "Update Dish"
+  // The rest of the UI can remain exactly the same
 
   return (
     <TouchableWithoutFeedback onPress={handleBackgroundTap} accessible={false}>
@@ -285,9 +337,9 @@ export default function CreateDishScreen() {
                     <AntDesign name="close" size={32} />
                   </Link>
 
-                  {/* Title (Centered) */}
+                  {/* Title (Centered) - Changed to "Edit Dish" */}
                   <Text className="text-3xl font-bold text-gray-800">
-                    Create Dish
+                    Edit Dish
                   </Text>
 
                   {/* Heart Button (Right-aligned) */}
@@ -664,7 +716,7 @@ export default function CreateDishScreen() {
           keyboardShouldPersistTaps="handled"
         />
 
-        {/* Save Button */}
+        {/* Save Button - Changed to "Update Dish" */}
         <View className="absolute bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200">
           <TouchableOpacity
             className="bg-green-600 rounded-full p-4 items-center"
@@ -672,7 +724,7 @@ export default function CreateDishScreen() {
             disabled={isSubmitting}
           >
             <Text className="text-white font-bold text-lg">
-              {isSubmitting ? "Saving..." : "Save Dish"}
+              {isSubmitting ? "Updating..." : "Update Dish"}
             </Text>
           </TouchableOpacity>
         </View>
