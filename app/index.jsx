@@ -29,7 +29,7 @@ export default function HomeScreen() {
         // console.log('API_BASE_URL:', API_BASE_URL);
         const response = await axios.get(`${API_BASE_URL}/api/dishes/`, {
           // const response = await axios.get(
-          //   "http://192.168.1.65:8000/api/dishes/",
+          //   "http://192.168.4.186:8000/api/dishes/",
           // {
           headers: {
             Accept: "application/json",
@@ -179,7 +179,7 @@ export default function HomeScreen() {
                   key={category.id}
                   className="w-[48%] aspect-square"
                   onPress={() =>
-                    navigation.navigate("CategoryDishes", {
+                    navigation.navigate("categoryDishes", {
                       categoryId: category.id,
                     })
                   }
@@ -211,7 +211,7 @@ export default function HomeScreen() {
                   key={category.id}
                   className="w-[48%] aspect-square"
                   onPress={() =>
-                    navigation.navigate("CategoryDishes", {
+                    navigation.navigate("categoryDishes", {
                       categoryId: category.id,
                     })
                   }
@@ -243,7 +243,7 @@ export default function HomeScreen() {
                   key={thirdRow[0].id}
                   className="w-[48%] aspect-square"
                   onPress={() =>
-                    navigation.navigate("CategoryDishes", {
+                    navigation.navigate("categoryDishes", {
                       categoryId: thirdRow[0].id,
                     })
                   }

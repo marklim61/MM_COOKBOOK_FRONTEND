@@ -56,7 +56,7 @@ export default function EditDishScreen() {
 
   // Fetch existing dish data
   useEffect(() => {
-    console.log("API_BASE_URL:", API_BASE_URL);
+    console.log("API_BASE_URL from EditDishScreen:", API_BASE_URL);
     const fetchDishData = async () => {
       try {
         const [dishRes, ingredientsRes, unitsRes, categoriesRes] =

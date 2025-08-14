@@ -44,6 +44,7 @@ const RecipeDetailScreen = () => {
   useEffect(() => {
     const fetchDish = async () => {
       try {
+        console.log("API_BASE_URL:", API_BASE_URL);
         const response = await axios.get(`${API_BASE_URL}/api/dishes/${id}/`, {
           timeout: 10000, // 10 seconds timeout
         });
